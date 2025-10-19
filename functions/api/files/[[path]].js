@@ -14,7 +14,7 @@ export async function onRequest(context) {
   const branch = env.GH_BRANCH || "main";
 
   // Build path from catch-all params
-  const path = params && params.path ? params.path.join("/") : "";
+  const path = (context.params.path || []).join("/"); // "releases/com/example/mylib/1.0.0/file.jar"
 
   // CORS headers
   const CORS = {
