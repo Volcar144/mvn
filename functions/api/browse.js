@@ -3,7 +3,7 @@ export async function onRequest(context) {
   const path = url.searchParams.get("path") || "";
   const repoType = url.searchParams.get("repo") || "releases";
 
-  const apiUrl = `https://api.github.com/repos/Volcar144/StaticHosting/contents/${repoType}${path ? "/" + path : ""}`;
+  const apiUrl = `https://api.github.com/repos/Volcar144/StaticHosting/contents/${repoType}${path ? "/" + path : ""}?ref=maven`;
 
   try {
     const res = await fetch(apiUrl, {
