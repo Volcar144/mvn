@@ -48,7 +48,7 @@ export async function onRequest(context) {
     //    status: ghRes.status,
     //    headers: CORS,
         return new Response(`${path} and ${branch} https://api.github.com/repos/${owner}/${repo}/contents/${path || ""}?ref=${branch} `)
-      });
+      };
     }
 
     const json = await ghRes.json();
