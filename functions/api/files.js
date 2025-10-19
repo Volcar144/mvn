@@ -1,117 +1,106 @@
+import { Octokit } from "@octokit/core";
+
 export async function onRequest(context) {
   const { request, env } = context;
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/^\/api\/files\/?/, "");
+
+  // Initialize Octokit with your GitHub token
+  const octokit = new Octokit({ auth: env.GH_TOKEN });
+
+  // Determine request method
   const method = request.method.toUpperCase();
-  let path = new URL(request.url).pathname.replace(/^\/api\/files\//, "");
 
-  // Auto-route snapshots to /snapshots/ and others to /releases/
-  const targetBase = path.includes("-SNAPSHOT") ? "snapshots" : "releases";
-  path = `${targetBase}/${path}`;
-
-  switch (method) {
-    case "GET":
-      return handleGet(path, env);
-    case "PUT":
-      return handlePut(path, request, env);
-    case "OPTIONS":
-      return new Response(null, { status: 204, headers: corsHeaders() });
-    default:
-      return new Response("Method Not Allowed", { status: 405 });
-  }
-}
-
-// ------------------
-// GET handler
-// ------------------
-async function handleGet(path, env) {
-  const ghUrl = `https://raw.githubusercontent.com/${env.GH_REPO}/${env.GH_BRANCH}/${path}`;
-  const res = await fetch(ghUrl, {
-    headers: {
-      "User-Agent": "cf-gh-proxy",
-      ...(env.GH_TOKEN ? { Authorization: `Bearer ${env.GH_TOKEN}` } : {}),
-    },
-  });
-
-  if (!res.ok) {
-    return new Response(`File not found: ${path}`, {
-      status: res.status,
+  // Preflight CORS
+  if (method === "OPTIONS") {
+    return new Response(null, {
       headers: corsHeaders(),
     });
   }
 
-  return new Response(res.body, {
-    status: 200,
-    headers: {
-      ...corsHeaders(),
-      "Content-Type": res.headers.get("Content-Type") || "application/octet-stream",
-      "Cache-Control": "public, max-age=60",
-    },
-  });
-}
+  // ✅ Handle GET — read file contents
+  if (method === "GET") {
+    try {
+      const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+        owner: env.GH_REPO.split("/")[0],
+        repo: env.GH_REPO.split("/")[1],
+        path,
+        ref: env.GH_BRANCH,
+      });
 
-// ------------------
-// PUT handler
-// ------------------
-async function handlePut(path, request, env) {
-  // Basic auth for uploads
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader || authHeader !== `Bearer ${env.UPLOAD_KEY}`) {
-    return new Response("Unauthorized", { status: 403, headers: corsHeaders() });
+      if (Array.isArray(res.data)) {
+        // It's a directory → show JSON listing
+        return new Response(JSON.stringify(res.data, null, 2), {
+          headers: { "Content-Type": "application/json", ...corsHeaders() },
+        });
+      }
+
+      // Decode and return file content
+      const content = atob(res.data.content);
+      return new Response(content, {
+        headers: { "Content-Type": res.data.type === "file" ? "application/octet-stream" : "text/plain", ...corsHeaders() },
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: err.status || 500,
+        headers: corsHeaders(),
+      });
+    }
   }
 
-  // Read body and encode for GitHub API
-  const body = await request.arrayBuffer();
-  const content = btoa(String.fromCharCode(...new Uint8Array(body)));
+  // ✅ Handle PUT — upload or update file
+  if (method === "PUT") {
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || authHeader !== `Bearer ${env.UPLOAD_KEY}`) {
+      return new Response("Unauthorized", { status: 401 });
+    }
 
-  // Check if file exists for SHA
-  const getUrl = `https://api.github.com/repos/${env.GH_REPO}/contents/${path}?ref=${env.GH_BRANCH}`;
-  const getRes = await fetch(getUrl, {
-    headers: {
-      "Authorization": `Bearer ${env.GH_TOKEN}`,
-      "User-Agent": "cf-gh-proxy",
-    },
-  });
+    const body = await request.text();
+    const content = btoa(body); // GitHub expects base64-encoded content
 
-  let sha = undefined;
-  if (getRes.ok) {
-    const existing = await getRes.json();
-    sha = existing.sha;
+    // Try to get SHA of existing file (for updates)
+    let sha = undefined;
+    try {
+      const existing = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+        owner: env.GH_REPO.split("/")[0],
+        repo: env.GH_REPO.split("/")[1],
+        path,
+        ref: env.GH_BRANCH,
+      });
+      sha = existing.data.sha;
+    } catch (err) {
+      // 404 is fine — means it’s a new file
+    }
+
+    // Commit file
+    try {
+      await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+        owner: env.GH_REPO.split("/")[0],
+        repo: env.GH_REPO.split("/")[1],
+        path,
+        message: `Update ${path}`,
+        content,
+        branch: env.GH_BRANCH,
+        sha,
+      });
+
+      return new Response("OK", { status: 200, headers: corsHeaders() });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: err.status || 500,
+        headers: corsHeaders(),
+      });
+    }
   }
 
-  const payload = {
-    message: `Upload ${path}`,
-    content,
-    branch: env.GH_BRANCH,
-    ...(sha ? { sha } : {}),
-  };
-
-  const putUrl = `https://api.github.com/repos/${env.GH_REPO}/contents/${path}`;
-  const putRes = await fetch(putUrl, {
-    method: "PUT",
-    headers: {
-      "Authorization": `Bearer ${env.GH_TOKEN}`,
-      "User-Agent": "cf-gh-proxy",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!putRes.ok) {
-    const error = await putRes.text();
-    return new Response(`GitHub API error: ${error}`, {
-      status: putRes.status,
-      headers: corsHeaders(),
-    });
-  }
-
-  return new Response(`Committed ${path}`, {
-    status: 200,
+  // If method isn’t handled
+  return new Response("Method Not Allowed", {
+    status: 405,
     headers: corsHeaders(),
   });
 }
 
-// ------------------
-// Utility: CORS headers
-// ------------------
+// Helper for CORS
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
