@@ -1,0 +1,15 @@
+name = "DanngDevMaven"
+type = "javascript"                    # Using JS Pages Functions
+compatibility_date = "2025-10-19"     # Use today's date
+
+# Optional: specify the directory to deploy from
+# root = "."                          # defaults to project root
+
+[vars]
+# GitHub repository to store Maven artifacts (format: username/repo)
+GH_REPO = "volcar144/StaticHosting"
+
+# Git branch to store/retrieve files
+GH_BRANCH = "maven"
+
+
