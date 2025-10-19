@@ -1,0 +1,8 @@
+{
+  "name": "cf-gh-maven-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@octokit/core": "^6.0.0"
+  }
+}
