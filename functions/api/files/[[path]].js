@@ -43,10 +43,11 @@ export async function onRequest(context) {
 
     if (!ghRes.ok) {
       // forward status and body
-      const txt = await ghRes.text();
-      return new Response(txt || `GitHub returned ${ghRes.status}`, {
-        status: ghRes.status,
-        headers: CORS,
+    //  const txt = await ghRes.text();
+    //  return new Response(txt || `GitHub returned ${ghRes.status}`, {
+    //    status: ghRes.status,
+    //    headers: CORS,
+        return new Response(`${path} and ${branch} https://api.github.com/repos/${owner}/${repo}/contents/${path || ""}?ref=${branch} `)
       });
     }
 
