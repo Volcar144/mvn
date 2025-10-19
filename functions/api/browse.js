@@ -1,21 +1,20 @@
-import { Octokit } from "@octokit/core";
-
 export async function onRequest(context) {
-  const { env, request } = context;
-  const octokit = new Octokit({ auth: env.GH_TOKEN });
-  const url = new URL(request.url);
+  const url = new URL(context.request.url);
   const path = url.searchParams.get("path") || "";
   const repoType = url.searchParams.get("repo") || "releases";
 
+  const apiUrl = `https://api.github.com/repos/Volcar144/StaticHosting/contents/${repoType}${path ? "/" + path : ""}`;
+
   try {
-    const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
-      owner: env.GH_REPO.split("/")[0],
-      repo: env.GH_REPO.split("/")[1],
-      path: `${repoType}${path ? "/" + path : ""}`,
-      ref: env.GH_BRANCH,
+    const res = await fetch(apiUrl, {
+      headers: { "User-Agent": "cf-browse" } // token not needed for public repo
     });
 
-    const items = Array.isArray(res.data) ? res.data : [];
+    if (!res.ok) {
+      return new Response(`GitHub returned ${res.status}`, { status: res.status });
+    }
+
+    const items = await res.json();
     const parts = path.split("/").filter(Boolean);
 
     let breadcrumb = `<a href="?repo=${repoType}">/${repoType}</a>`;
@@ -59,7 +58,8 @@ export async function onRequest(context) {
     `;
 
     return new Response(html, { headers: { "Content-Type": "text/html" } });
+
   } catch (err) {
-    return new Response(`<pre>Error: ${err.message}</pre>`, { status: err.status || 500 });
+    return new Response(`<pre>Error: ${err.message}</pre>`, { status: 500 });
   }
 }
