@@ -11,7 +11,7 @@ export async function onRequest(context) {
   const method = request.method.toUpperCase();
   const owner = "Volcar144";
   const repo = "StaticHosting";
-  const branch = env.GH_BRANCH || "main";
+  const branch = "maven";
 
   // Build path from catch-all params
   const path = (context.params.path || []).join("/"); // "releases/com/example/mylib/1.0.0/file.jar"
