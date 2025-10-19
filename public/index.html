@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Maven Repo Browser</title>
+  <meta http-equiv="refresh" content="0; url=/api/browse?repo=releases">
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f8f8f8;
+      color: #d00000;
+    }
+    h1 { font-size: 2rem; }
+    p { font-size: 1rem; }
+    a { color: #d00000; text-decoration: underline; }
+    .loader {
+      border: 16px dotted #f8f8f8;
+      border-radius: 50%;
+      border-top: 16px dotted #d00000;
+      width: 120px;
+      height: 120px;
+      -webkit-animation: spin 2s linear infinite; /* Safari */
+      animation: spin 2s linear infinite;
+    }
+
+    /* Safari */
+    @-webkit-keyframes spin {
+      0% { -webkit-transform: rotate(0deg); }
+      100% { -webkit-transform: rotate(360deg); }
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Redirecting to Maven Repo Browser...</h1> <div class="loader"></div>
+  <p>If you are not redirected automatically, <a href="/api/browse?repo=releases">click here</a>.</p>
+</body>
+</html>
