@@ -22,8 +22,11 @@ export async function onRequest(context) {
     }
 
     const html = `
-      <html>
+      <!DOCTYPE html>
+      <html lang="en">
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Maven Browser - ${repoType}/${path || ""}</title>
           <style>
             body {
@@ -33,7 +36,6 @@ export async function onRequest(context) {
               padding: 2rem;
               color: #333;
             }
-
             .tabs {
               margin-bottom: 1.5rem;
             }
@@ -53,18 +55,15 @@ export async function onRequest(context) {
               background-color: #d00000;
               color: #fff;
             }
-
             h1 {
               font-size: 1.5rem;
               margin-bottom: 1rem;
             }
-
             .breadcrumb a {
               color: #d00000;
               text-decoration: none;
             }
             .breadcrumb a:hover { text-decoration: underline; }
-
             ul {
               list-style: none;
               padding: 0;
@@ -72,7 +71,6 @@ export async function onRequest(context) {
               grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
               gap: 0.75rem;
             }
-
             li {
               background-color: #fff;
               padding: 0.75rem 1rem;
@@ -82,12 +80,10 @@ export async function onRequest(context) {
               align-items: center;
               transition: 0.2s;
             }
-
             li:hover {
               box-shadow: 0 4px 12px rgba(0,0,0,0.15);
               transform: translateY(-2px);
             }
-
             .folder::before {
               content: "📁";
               margin-right: 0.5rem;
@@ -98,7 +94,6 @@ export async function onRequest(context) {
               margin-right: 0.5rem;
               font-size: 1.2rem;
             }
-
             a.item-link {
               color: #333;
               text-decoration: none;
@@ -106,7 +101,6 @@ export async function onRequest(context) {
               word-break: break-word;
             }
             a.item-link:hover { text-decoration: underline; color: #d00000; }
-
           </style>
         </head>
         <body>
@@ -114,9 +108,7 @@ export async function onRequest(context) {
             <a href="?repo=releases"${repoType === "releases" ? " class='active'" : ""}>Releases</a>
             <a href="?repo=snapshots"${repoType === "snapshots" ? " class='active'" : ""}>Snapshots</a>
           </div>
-
           <h1 class="breadcrumb">${breadcrumb}</h1>
-
           <ul>
             ${items.map(item => {
               const itemClass = item.type === "dir" ? "folder" : "file";
@@ -130,9 +122,12 @@ export async function onRequest(context) {
       </html>
     `;
 
-    return new Response(html, { headers: { "Content-Type": "text/html" } });
+    // ✅ Explicit UTF-8 charset in header
+    return new Response(html, {
+      headers: { "Content-Type": "text/html; charset=UTF-8" },
+    });
 
   } catch (err) {
-    return new Response(`<pre>Error: ${err.message}</pre>`, { status: 500 });
+    return new Response(`<pre>Error: ${err.message}</pre>`, { status: 500, headers: { "Content-Type": "text/html; charset=UTF-8" } });
   }
 }
