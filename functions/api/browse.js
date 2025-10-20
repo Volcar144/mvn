@@ -68,7 +68,7 @@ export async function onRequest(context) {
               list-style: none;
               padding: 0;
               display: grid;
-              grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+              grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
               gap: 0.75rem;
             }
             li {
@@ -84,16 +84,6 @@ export async function onRequest(context) {
               box-shadow: 0 4px 12px rgba(0,0,0,0.15);
               transform: translateY(-2px);
             }
-            .folder::before {
-              content: "📁";
-              margin-right: 0.5rem;
-              font-size: 1.2rem;
-            }
-            .file::before {
-              content: "📄";
-              margin-right: 0.5rem;
-              font-size: 1.2rem;
-            }
             a.item-link {
               color: #333;
               text-decoration: none;
@@ -101,7 +91,99 @@ export async function onRequest(context) {
               word-break: break-word;
             }
             a.item-link:hover { text-decoration: underline; color: #d00000; }
+
+            #editorModal {
+              position: fixed;
+              top: 0; left: 0;
+              width: 100%; height: 100%;
+              background: rgba(0,0,0,0.5);
+              display: none;
+              justify-content: center;
+              align-items: center;
+            }
+            #editorBox {
+              background: white;
+              border-radius: 10px;
+              width: 80%;
+              max-width: 900px;
+              padding: 1rem;
+              display: flex;
+              flex-direction: column;
+            }
+            #editor {
+              border: 1px solid #ddd;
+              height: 400px;
+              border-radius: 6px;
+              margin-bottom: 1rem;
+            }
+            #closeBtn, #saveBtn {
+              padding: 0.5rem 1rem;
+              border: none;
+              border-radius: 6px;
+              font-weight: bold;
+              cursor: pointer;
+            }
+            #closeBtn {
+              background: #ccc;
+              color: #333;
+              margin-right: 0.5rem;
+            }
+            #saveBtn {
+              background: #d00000;
+              color: white;
+            }
           </style>
+          <script type="module">
+            import { EditorView, basicSetup } from "https://cdn.jsdelivr.net/npm/@codemirror/basic-setup@0.19.1/+esm";
+            import { EditorState } from "https://cdn.jsdelivr.net/npm/@codemirror/state@0.19.1/+esm";
+            import { xml } from "https://cdn.jsdelivr.net/npm/@codemirror/lang-xml@0.19.1/+esm";
+            import { yaml } from "https://cdn.jsdelivr.net/npm/@codemirror/lang-yaml@0.19.1/+esm";
+
+            let editorView = null;
+            window.openEditor = async (filePath, displayName) => {
+              document.getElementById('editorModal').style.display = 'flex';
+              document.getElementById('editorBox').dataset.path = filePath;
+              document.getElementById('editorTitle').textContent = displayName;
+
+              const res = await fetch('/api/files/' + filePath);
+              const text = await res.text();
+
+              const ext = displayName.split('.').pop().toLowerCase();
+              let lang = null;
+              if (ext === 'xml') lang = xml();
+              if (['yml','yaml'].includes(ext)) lang = yaml();
+
+              editorView = new EditorView({
+                state: EditorState.create({
+                  doc: text,
+                  extensions: [basicSetup, lang ?? []]
+                }),
+                parent: document.getElementById('editor')
+              });
+            };
+
+            window.closeEditor = () => {
+              document.getElementById('editorModal').style.display = 'none';
+              if (editorView) {
+                editorView.destroy();
+                editorView = null;
+              }
+            };
+
+            window.saveFile = async () => {
+              const path = document.getElementById('editorBox').dataset.path;
+              const key = prompt("Enter upload key:");
+              if (!key) return alert("Upload key required.");
+              const content = editorView.state.doc.toString();
+              const res = await fetch('/api/files/' + path, {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + key },
+                body: new Blob([content])
+              });
+              alert(await res.text());
+              if (res.ok) closeEditor();
+            };
+          </script>
         </head>
         <body>
           <div class="tabs">
@@ -112,22 +194,41 @@ export async function onRequest(context) {
           <ul>
             ${items.map(item => {
               const itemClass = item.type === "dir" ? "folder" : "file";
-              const link = item.type === "dir"
-                ? `?repo=${repoType}&path=${item.path.replace(/^${repoType}\//,'')}`
-                : `/api/files/${item.path}`;
-              return `<li class="${itemClass}"><a class="item-link" href="${link}">${item.name}</a></li>`;
+              const name = item.type === "dir" ? item.name + "/" : item.name;
+              const ext = name.split('.').pop().toLowerCase();
+              const editable = ['txt','xml','yml','yaml'].includes(ext);
+              if (item.type === "dir") {
+                return `<li><a class="item-link" href="?repo=${repoType}&path=${item.path.replace(/^${repoType}\//,'')}">${name}</a></li>`;
+              } else if (editable) {
+                return `<li><a class="item-link" href="javascript:void(0)" onclick="openEditor('${item.path}','${item.name}')">${name}</a></li>`;
+              } else {
+                return `<li><a class="item-link" href="/api/files/${item.path}">${name}</a></li>`;
+              }
             }).join("")}
           </ul>
+
+          <div id="editorModal">
+            <div id="editorBox">
+              <h2 id="editorTitle"></h2>
+              <div id="editor"></div>
+              <div style="margin-top:1rem;text-align:right;">
+                <button id="closeBtn" onclick="closeEditor()">Close</button>
+                <button id="saveBtn" onclick="saveFile()">Save</button>
+              </div>
+            </div>
+          </div>
         </body>
       </html>
     `;
 
-    // ✅ Explicit UTF-8 charset in header
     return new Response(html, {
       headers: { "Content-Type": "text/html; charset=UTF-8" },
     });
 
   } catch (err) {
-    return new Response(`<pre>Error: ${err.message}</pre>`, { status: 500, headers: { "Content-Type": "text/html; charset=UTF-8" } });
+    return new Response(`<pre>Error: ${err.message}</pre>`, {
+      status: 500,
+      headers: { "Content-Type": "text/html; charset=UTF-8" },
+    });
   }
 }
