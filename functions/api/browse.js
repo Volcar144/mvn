@@ -132,7 +132,7 @@ export async function onRequest(context) {
               const ext = name.split('.').pop().toLowerCase();
               const editable = ['txt', 'xml', 'yml', 'yaml', 'json'].includes(ext);
               if (item.type === "dir") {
-                return `<li><a class="item-link" href="?repo=${repoType}&path=${item.path.replace(/^${repoType}\\//,'')}">${name}</a></li>`;
+                return '<li><a class="item-link" href="?repo=' + repoType + '&path=' + item.path.replace(new RegExp('^' + repoType + '/'), '') + '">' + name + '</a></li>';
               } else if (editable) {
                 return `<li><a class="item-link" href="javascript:void(0)" data-path="${item.path}" data-name="${item.name}" class="editable">${name}</a></li>`;
               } else {
